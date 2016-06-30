@@ -21,6 +21,8 @@ func main() {
 	fmt.Println("Hello", filename)
 
 	demangleAll(filename)
+	fmt.Println("")
+	fmt.Println(extractInt("14SoftSimGatewayFf"))
 }
 
 func demangleAll(filename string) {
@@ -133,6 +135,18 @@ func decompress(name string) (string, error) {
 }
 
 func demangleTemplate(name string) (string, error) {
+	var mstart = strings.Index(name, "__")
+	if mstart != -1 && strings.HasPrefix(name[mstart:len(name)], "___") {
+		mstart++
+	}
+
+	if mstart == -1 {
+		return name, nil
+	}
+
+	//var remainder = name[mstart+2 : len(name)]
+	name = name[0:mstart]
+
 	return name, nil
 }
 
@@ -144,7 +158,12 @@ func readBaseName(name string) (string, string, error) {
 	/*
 		var opName = ""
 		if strings.HasPrefix(name, "__op") {
+			var args = []string{}
+			var t, name, err = readType(args, name)
 
+			check(err)
+			opName = "operator " + t
+			name = "#" + name
 		}
 	*/
 
@@ -158,8 +177,13 @@ func readBaseName(name string) (string, string, error) {
 		return name, remainder, nil
 	}
 
-	var remainder = name
-	return "", remainder, nil
+	var remainder = name[mstart+2 : len(name)]
+	name = name[0:mstart]
+
+	var dt, err = demangleTemplate(name)
+	check(err)
+
+	return dt, remainder, nil
 }
 
 func readArguments(name string) (string, string, error) {
