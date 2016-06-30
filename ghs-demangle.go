@@ -113,7 +113,6 @@ func demangleAll(filename string) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		var line = scanner.Text()
-		//fmt.Println(scanner.Text())
 		if len(line) > 0 {
 			var name, err = demangle(line)
 			if err != nil {
@@ -187,8 +186,7 @@ func demangle(input string) (string, error) {
 	}
 
 	if len(mangle) > 0 {
-		fmt.Println("Unknown modifier: " + mangle)
-		return "", errors.New("Unknown modifier")
+		return "", fmt.Errorf("Unknown modifier %v", mangle)
 	}
 
 	var partTwo = declType
@@ -244,12 +242,12 @@ func demangleTemplate(name string) (string, error) {
 		}
 
 		if !strings.HasPrefix(name, "_") { //This checks 'name', instead of 'remainder' because of the refactoring of extractName
-			return "", errors.New(fmt.Sprintf("Unexpected character after template argument length. \"%v\"", remainder))
+			return "", fmt.Errorf("Unexpected character after template parameter length. \"%v\"", name)
 		}
 
 		var declArgs = ""
 		var tmp = ""
-		declArgs, tmp, err = readTemplateArguments(remainder[1:])
+		declArgs, tmp, err = readTemplateArguments(name[1:])
 		check(err)
 
 		if strings.HasSuffix(declArgs, ">") {
@@ -257,10 +255,9 @@ func demangleTemplate(name string) (string, error) {
 		}
 
 		name += "<" + declArgs + ">"
-		//remainder = remainder[length:]
 
 		if tmp != remainder {
-			return "", errors.New("Bad template argument length")
+			return "", fmt.Errorf("Bad template argument length %v != %v", tmp, remainder)
 		}
 
 		if len(remainder) == 0 {
@@ -349,11 +346,64 @@ func readArguments(name string) (string, string, error) {
 }
 
 func readTemplateArguments(name string) (string, string, error) {
+	var result = ""
+	var args = []string{}
 	var remainder = name
-	return "", remainder, nil
+
+	var tipe = "" //Can't call it 'type' as the original source does :)
+	var val = ""
+	for len(remainder) > 0 && !strings.HasPrefix(remainder, "_") {
+		var err error = nil
+		if len(args) > 0 {
+			result += ", "
+		}
+
+		if strings.HasPrefix(remainder, "X") {
+			remainder = remainder[1:]
+			if len(remainder) == 0 {
+				return "", "", errors.New("Unexpected end of string.  Expected a type.")
+			}
+
+			if startsWithDigit(remainder) {
+				tipe = "#"
+				val, remainder, err = readString(remainder)
+				check(err)
+			} else {
+				tipe, remainder, err = readType(args, remainder)
+				check(err)
+				tipe = strings.Replace(tipe, "#", " #", -1)
+				if strings.HasPrefix(remainder, "L") {
+					remainder = remainder[1:]
+					if len(remainder) == 0 || remainder[0] != '_' {
+						return "", "", errors.New("Unexpected end of string.  Expected '_'.")
+					}
+
+					val, remainder, err = extractName(remainder[1:])
+
+					if err != nil {
+						return "", "", errors.New("Bad template parameter length.")
+					}
+
+					if !strings.HasPrefix(val, "_") { //This checks 'name', instead of 'remainder' because of the refactoring of extractName
+						return "", "", fmt.Errorf("Unexpected character after template parameter length. \"%v\"", val)
+					}
+				}
+			}
+		} else {
+			val, remainder, err = readType(args, remainder)
+			check(err)
+			tipe = "class #"
+		}
+
+		result += strings.Replace(tipe, "#", "Z"+strconv.Itoa(len(args)+1)+" = "+val, -1)
+		args = append(args, val)
+	}
+
+	return result, remainder, nil
 }
 
 func readType(args []string, name string) (string, string, error) {
+	fmt.Println("readType", args, name)
 	var remainder = name
 	return "", remainder, nil
 }
