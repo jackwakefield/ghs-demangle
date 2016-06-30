@@ -7,6 +7,8 @@ import "strings"
 import "unicode"
 import "unicode/utf8"
 import "errors"
+import "regexp"
+import "strconv"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -17,6 +19,7 @@ func main() {
 	var filename = os.Args[1]
 
 	fmt.Println("Hello", filename)
+
 	demangleAll(filename)
 }
 
@@ -32,7 +35,7 @@ func demangleAll(filename string) {
 		if len(line) > 0 {
 			var name, err = demangle(line)
 			if err != nil {
-				fmt.Println("Error demangling: ", line)
+				fmt.Println("Error demangling:", line)
 			}
 			fmt.Println(name)
 		}
@@ -49,18 +52,18 @@ func demangle(input string) (string, error) {
 	check(err)
 
 	var declStatic = ""
-	if strings.HasPrefix("S__", mangle) {
+	if strings.HasPrefix(mangle, "S__") {
 		declStatic = "static "
 		mangle = mangle[3:len(mangle)]
 	}
 
 	var declNameSpace = ""
 	var declClass = ""
-	if strings.HasPrefix("Q", mangle) {
+	if strings.HasPrefix(mangle, "Q") {
 		declNameSpace, mangle, err = readNameSpace(mangle)
 		check(err)
 
-		var last = strings.LastIndex("::", declNameSpace)
+		var last = strings.LastIndex(declNameSpace, "::")
 		if last == -1 {
 			declClass = declNameSpace
 		} else {
@@ -76,19 +79,19 @@ func demangle(input string) (string, error) {
 
 	baseName = strings.Replace(baseName, "#", declClass, -1)
 
-	if strings.HasPrefix("S", mangle) {
+	if strings.HasPrefix(mangle, "S") {
 		declStatic = "static "
 		mangle = mangle[1:len(mangle)]
 	}
 
 	var declConst = ""
-	if strings.HasPrefix("C", mangle) {
+	if strings.HasPrefix(mangle, "C") {
 		declConst = " const"
 		mangle = mangle[1:len(mangle)]
 	}
 
 	var declType = "#"
-	if strings.HasPrefix("F", mangle) {
+	if strings.HasPrefix(mangle, "F") {
 		var args = []string{}
 		declType, mangle, err = readType(args, mangle)
 		check(err)
@@ -96,7 +99,7 @@ func demangle(input string) (string, error) {
 
 	/*
 		var end
-		if strings.HasPrefix("_", mangle) {
+		if strings.HasPrefix(mangle, "_") {
 			baseName += "_" + end.ToString
 			mangle = ""
 		}
@@ -138,33 +141,80 @@ func readBaseName(name string) (string, string, error) {
 		return "", "", errors.New("Unexpected end of string, Expected a name.")
 	}
 
-	var remainder = ""
-	return name, remainder, nil
+	/*
+		var opName = ""
+		if strings.HasPrefix(name, "__op") {
+
+		}
+	*/
+
+	var mstart = strings.Index(name, "__")
+	if mstart != -1 && strings.HasPrefix(name[mstart:len(name)], "___") {
+		mstart++
+	}
+
+	if mstart == -1 {
+		var remainder = ""
+		return name, remainder, nil
+	}
+
+	var remainder = name
+	return "", remainder, nil
 }
 
 func readArguments(name string) (string, string, error) {
-	var remainder = ""
-	return name, remainder, nil
+	var remainder = name
+	return "", remainder, nil
 }
 
 func readTemplateArguments(name string) (string, string, error) {
-	var remainder = ""
-	return name, remainder, nil
+	var remainder = name
+	return "", remainder, nil
 }
 
 func readType(args []string, name string) (string, string, error) {
-	var remainder = ""
-	return name, remainder, nil
+	var remainder = name
+	return "", remainder, nil
 }
 
 func readNameSpace(name string) (string, string, error) {
-	var remainder = ""
-	return name, remainder, nil
+	var remainder = name
+	return "", remainder, nil
 }
 
-func readString(name string) (string, string, error) {
-	var remainder = ""
-	return name, remainder, nil
+func readString(input string) (string, string, error) {
+	if len(input) == 0 {
+		return "", "", errors.New("Unexpected end of string.  Expected a digit.")
+	}
+
+	var name, length, err = extractInt(input)
+	check(err)
+	if length == 0 || len(name) < length {
+		return "", "", errors.New("Bad string length.")
+	}
+
+	var remainder = input[length:len(input)]
+	var dt = ""
+	dt, err = demangleTemplate(name)
+	check(err)
+
+	return dt, remainder, nil
+}
+
+func extractInt(name string) (string, int, error) {
+	if len(name) == 0 {
+		return "", 0, errors.New("Unexpected end of string.  Expected a digit.")
+	}
+	re := regexp.MustCompile(`([0-9]+)(.*)$`)
+	var results = re.FindStringSubmatch(name)
+	//Should have 3 items in array; the whole regex match, and then each capture.
+	if results == nil || len(results) < 3 {
+		return "", 0, errors.New("Unexpected end of string.  Unable to match digits.")
+	}
+
+	var len, err = strconv.Atoi(results[1])
+	check(err)
+	return results[2], len, nil
 }
 
 func printUsage() {
