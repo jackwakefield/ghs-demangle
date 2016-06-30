@@ -101,8 +101,8 @@ func main() {
 	fmt.Println("Hello", filename)
 
 	demangleAll(filename)
-	fmt.Println("")
-	fmt.Println(extractInt("14SoftSimGatewayFf"))
+	//fmt.Println("")
+	//fmt.Println(demangle("__ct__7MyClass"))
 }
 
 func demangleAll(filename string) {
@@ -179,13 +179,12 @@ func demangle(input string) (string, error) {
 		check(err)
 	}
 
-	/*
-		var end
-		if strings.HasPrefix(mangle, "_") {
-			baseName += "_" + end.ToString
-			mangle = ""
-		}
-	*/
+	if strings.HasPrefix(mangle, "_") {
+		var end, err = strconv.Atoi(mangle[1:])
+		check(err)
+		baseName += "_" + strconv.Itoa(end)
+		mangle = ""
+	}
 
 	if len(mangle) > 0 {
 		fmt.Println("Unknown modifier: " + mangle)
@@ -224,8 +223,55 @@ func demangleTemplate(name string) (string, error) {
 		return name, nil
 	}
 
-	//var remainder = name[mstart+2 : ]
-	name = name[0:mstart]
+	var remainder = name[mstart+2:]
+	name = name[:mstart]
+
+	for true {
+		if !startsWithAny(remainder, templatePrefixes) {
+			return "", errors.New("Unexpected template argument prefix.")
+		}
+
+		var lstart = strings.Index(remainder, "__")
+		if lstart == -1 {
+			return "", errors.New("Bad template argument")
+		}
+
+		remainder = remainder[lstart+2:]
+		var name, remainder, err = extractName(remainder)
+		if err != nil {
+			return "", errors.New("Bad template argument length.")
+		}
+
+		if !strings.HasPrefix(remainder, "_") {
+			return "", errors.New("Unexpected character after template argument length.")
+		}
+
+		var declArgs = ""
+		var tmp = ""
+		declArgs, tmp, err = readTemplateArguments(remainder[1:])
+		check(err)
+
+		if strings.HasSuffix(declArgs, ">") {
+			declArgs += " "
+		}
+
+		name += "<" + declArgs + ">"
+		//remainder = remainder[length:]
+
+		if tmp != remainder {
+			return "", errors.New("Bad template argument length")
+		}
+
+		if len(remainder) == 0 {
+			return name, nil
+		}
+
+		if !strings.HasPrefix(remainder, "__") {
+			return "", errors.New("Unexpected character(s) after template.")
+		}
+
+		remainder = remainder[2:]
+	}
 
 	return name, nil
 }
@@ -245,7 +291,7 @@ func readBaseName(name string) (string, string, error) {
 		name = "#" + name
 	}
 
-	var mstart = strings.Index(name, "__")
+	var mstart = strings.Index(name[1:], "__")
 	if mstart != -1 && strings.HasPrefix(name[mstart:], "___") {
 		mstart++
 	}
@@ -255,8 +301,8 @@ func readBaseName(name string) (string, string, error) {
 		return name, remainder, nil
 	}
 
-	var remainder = name[mstart+2:]
-	name = name[:mstart]
+	var remainder = name[mstart+3:]
+	name = name[:mstart+1]
 
 	if val, ok := baseNames[name]; ok {
 		name = val
@@ -273,12 +319,12 @@ func readBaseName(name string) (string, string, error) {
 		name += "__" + remainder[:lstart]
 		remainder = remainder[lstart+2:]
 
-		var remainder, length, err = extractInt(remainder)
-		if err != nil || length == 0 || length > len(remainder) {
+		var name, remainder, err = extractName(remainder)
+		if err != nil {
 			return "", "", errors.New("Bad template argument length.")
 		}
 
-		name += "__" + strconv.Itoa(length) + remainder
+		name += "__" + strconv.Itoa(len(name)) + remainder
 		if len(remainder) == 0 {
 			return name, remainder, nil
 		}
@@ -321,13 +367,9 @@ func readString(input string) (string, string, error) {
 		return "", "", errors.New("Unexpected end of string.  Expected a digit.")
 	}
 
-	var name, length, err = extractInt(input)
+	var name, remainder, err = extractName(input)
 	check(err)
-	if length == 0 || len(name) < length {
-		return "", "", errors.New("Bad string length.")
-	}
 
-	var remainder = input[length:]
 	var dt = ""
 	dt, err = demangleTemplate(name)
 	check(err)
@@ -335,20 +377,24 @@ func readString(input string) (string, string, error) {
 	return dt, remainder, nil
 }
 
-func extractInt(name string) (string, int, error) {
+func extractName(name string) (string, string, error) {
 	if len(name) == 0 {
-		return "", 0, errors.New("Unexpected end of string.  Expected a digit.")
-	}
-	re := regexp.MustCompile(`([0-9]+)(.*)$`)
-	var results = re.FindStringSubmatch(name)
-	//Should have 3 items in array; the whole regex match, and then each capture.
-	if results == nil || len(results) < 3 {
-		return "", 0, errors.New("Unexpected end of string.  Unable to match digits.")
+		return "", "", errors.New("Unexpected end of string.  Expected a digit.")
 	}
 
-	var len, err = strconv.Atoi(results[1])
+	re := regexp.MustCompile(`([0-9]+)(.*)$`)
+	var results = re.FindStringSubmatch(name)
+
+	//Should have 3 items in array; the whole regex match, and then each capture.
+	if results == nil || len(results) < 3 {
+		return "", "", errors.New("Unexpected end of string.  Unable to match digits.")
+	}
+
+	var length, err = strconv.Atoi(results[1])
 	check(err)
-	return results[2], len, nil
+	var postNumber = results[2]
+
+	return postNumber[:length], postNumber[length:], nil
 }
 
 func startsWithAny(input string, names []string) bool {
