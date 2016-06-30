@@ -56,7 +56,7 @@ func demangle(input string) (string, error) {
 	var declStatic = ""
 	if strings.HasPrefix(mangle, "S__") {
 		declStatic = "static "
-		mangle = mangle[3:len(mangle)]
+		mangle = mangle[3:]
 	}
 
 	var declNameSpace = ""
@@ -69,7 +69,7 @@ func demangle(input string) (string, error) {
 		if last == -1 {
 			declClass = declNameSpace
 		} else {
-			declClass = declNameSpace[last+2 : len(declNameSpace)]
+			declClass = declNameSpace[last+2:]
 		}
 
 		declNameSpace += "::"
@@ -83,13 +83,13 @@ func demangle(input string) (string, error) {
 
 	if strings.HasPrefix(mangle, "S") {
 		declStatic = "static "
-		mangle = mangle[1:len(mangle)]
+		mangle = mangle[1:]
 	}
 
 	var declConst = ""
 	if strings.HasPrefix(mangle, "C") {
 		declConst = " const"
-		mangle = mangle[1:len(mangle)]
+		mangle = mangle[1:]
 	}
 
 	var declType = "#"
@@ -136,7 +136,7 @@ func decompress(name string) (string, error) {
 
 func demangleTemplate(name string) (string, error) {
 	var mstart = strings.Index(name, "__")
-	if mstart != -1 && strings.HasPrefix(name[mstart:len(name)], "___") {
+	if mstart != -1 && strings.HasPrefix(name[mstart:], "___") {
 		mstart++
 	}
 
@@ -144,7 +144,7 @@ func demangleTemplate(name string) (string, error) {
 		return name, nil
 	}
 
-	//var remainder = name[mstart+2 : len(name)]
+	//var remainder = name[mstart+2 : ]
 	name = name[0:mstart]
 
 	return name, nil
@@ -168,7 +168,7 @@ func readBaseName(name string) (string, string, error) {
 	*/
 
 	var mstart = strings.Index(name, "__")
-	if mstart != -1 && strings.HasPrefix(name[mstart:len(name)], "___") {
+	if mstart != -1 && strings.HasPrefix(name[mstart:], "___") {
 		mstart++
 	}
 
@@ -177,7 +177,7 @@ func readBaseName(name string) (string, string, error) {
 		return name, remainder, nil
 	}
 
-	var remainder = name[mstart+2 : len(name)]
+	var remainder = name[mstart+2:]
 	name = name[0:mstart]
 
 	var dt, err = demangleTemplate(name)
@@ -217,7 +217,7 @@ func readString(input string) (string, string, error) {
 		return "", "", errors.New("Bad string length.")
 	}
 
-	var remainder = input[length:len(input)]
+	var remainder = input[length:]
 	var dt = ""
 	dt, err = demangleTemplate(name)
 	check(err)
