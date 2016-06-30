@@ -10,6 +10,8 @@ import "errors"
 import "regexp"
 import "strconv"
 
+var templatePrefixes = []string{"tm", "ps", "pt"}
+
 var baseNames = map[string]string{
 	"__vtbl": " virtual table",
 	"__ct":   "#",
@@ -233,17 +235,15 @@ func readBaseName(name string) (string, string, error) {
 		return "", "", errors.New("Unexpected end of string, Expected a name.")
 	}
 
-	/*
-		var opName = ""
-		if strings.HasPrefix(name, "__op") {
-			var args = []string{}
-			var t, name, err = readType(args, name)
+	var opName = ""
+	if strings.HasPrefix(name, "__op") {
+		var args = []string{}
+		var t, name, err = readType(args, name)
 
-			check(err)
-			opName = "operator " + t
-			name = "#" + name
-		}
-	*/
+		check(err)
+		opName = "operator " + t
+		name = "#" + name
+	}
 
 	var mstart = strings.Index(name, "__")
 	if mstart != -1 && strings.HasPrefix(name[mstart:], "___") {
@@ -256,7 +256,39 @@ func readBaseName(name string) (string, string, error) {
 	}
 
 	var remainder = name[mstart+2:]
-	name = name[0:mstart]
+	name = name[:mstart]
+
+	if val, ok := baseNames[name]; ok {
+		name = val
+	} else if name == "#" {
+		name = opName
+	}
+
+	for startsWithAny(remainder, templatePrefixes) {
+		var lstart = strings.Index(remainder, "__")
+		if lstart == -1 {
+			return "", "", errors.New("Bad template argument")
+		}
+
+		name += "__" + remainder[:lstart]
+		remainder = remainder[lstart+2:]
+
+		var remainder, length, err = extractInt(remainder)
+		if err != nil || length == 0 || length > len(remainder) {
+			return "", "", errors.New("Bad template argument length.")
+		}
+
+		name += "__" + strconv.Itoa(length) + remainder
+		if len(remainder) == 0 {
+			return name, remainder, nil
+		}
+
+		if !strings.HasPrefix(remainder, "__") {
+			return "", "", errors.New("Unexpected character(s) after template.")
+		}
+
+		remainder = remainder[2:]
+	}
 
 	var dt, err = demangleTemplate(name)
 	check(err)
@@ -317,6 +349,15 @@ func extractInt(name string) (string, int, error) {
 	var len, err = strconv.Atoi(results[1])
 	check(err)
 	return results[2], len, nil
+}
+
+func startsWithAny(input string, names []string) bool {
+	for _, v := range names {
+		if strings.HasPrefix(input, v) {
+			return true
+		}
+	}
+	return false
 }
 
 func printUsage() {
