@@ -10,6 +10,84 @@ import "errors"
 import "regexp"
 import "strconv"
 
+var baseNames = map[string]string{
+	"__vtbl": " virtual table",
+	"__ct":   "#",
+	"__dt":   "~#",
+	"__as":   "operator=",
+	"__eq":   "operator==",
+	"__ne":   "operator!=",
+	"__gt":   "operator>",
+	"__lt":   "operator<",
+	"__ge":   "operator>=",
+	"__le":   "operator<=",
+	"__pp":   "operator++",
+	"__pl":   "operator+",
+	"__apl":  "operator+=",
+	"__mi":   "operator-",
+	"__ami":  "operator-=",
+	"__ml":   "operator*",
+	"__amu":  "operator*=",
+	"__dv":   "operator/",
+	/* XXX below baseNames have not been seen - guess from libiberty cplus-dem.c*/
+	"__adv": "operator/=",
+	"__nw":  "operator new",
+	"__dl":  "operator delete",
+	"__vn":  "operator new[]",
+	"__vd":  "operator delete[]",
+	"__md":  "operator%",
+	"__amd": "operator%=",
+	"__mm":  "operator--",
+	"__aa":  "operator&&",
+	"__oo":  "operator||",
+	"__or":  "operator|",
+	"__aor": "operator|=",
+	"__er":  "operator^",
+	"__aer": "operator^=",
+	"__ad":  "operator&",
+	"__aad": "operator&=",
+	"__co":  "operator~",
+	"__cl":  "operator",
+	"__ls":  "operator<<",
+	"__als": "operator<<=",
+	"__rs":  "operator>>",
+	"__ars": "operator>>=",
+	"__rf":  "operator->",
+	"__vc":  "operator[]",
+}
+
+var baseTypes = map[rune]string{
+	'v': "void",
+	'i': "int",
+	's': "short",
+	'c': "char",
+	'w': "wchar_t",
+	'b': "bool",
+	'f': "float",
+	'd': "double",
+	'l': "long",
+	'L': "long long",
+	'e': "...",
+	/* XXX below baseTypes have not been seen - guess from libiberty cplus-dem.c */
+	'r': "long double",
+}
+
+var typePrefixes = map[rune]string{
+	'U': "unsigned",
+	'S': "signed",
+	/* XXX below typePrefixes have not been seen - guess from libiberty cplus-dem.c */
+	'J': "__complex",
+}
+
+var typeSuffixes = map[rune]string{
+	'P': "*",
+	'R': "&",
+	'C': "const",
+	'V': "volatile", /* XXX this is a guess! */
+	/* XXX below typeSuffixes have not been seen - guess from libiberty cplus-dem.c */
+	'u': "restrict",
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
@@ -116,7 +194,7 @@ func demangle(input string) (string, error) {
 	partTwo = strings.Replace(partTwo, "(#)", " "+declNameSpace+baseName, -1)
 	partTwo = strings.Replace(partTwo, "#", declNameSpace+baseName, -1)
 
-	return strings.Replace(declStatic+partTwo+declConst, ":: virtual table", " virtual table", -1), nil
+	return strings.Replace(declStatic+partTwo+declConst, "::"+baseNames["__vtbl"], baseNames["__vtbl"], -1), nil
 }
 
 func startsWithDigit(input string) bool {
