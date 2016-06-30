@@ -214,7 +214,7 @@ func decompress(name string) (string, error) {
 }
 
 func demangleTemplate(name string) (string, error) {
-	var mstart = strings.Index(name, "__")
+	var mstart = strings.Index(name[1:], "__")
 	if mstart != -1 && strings.HasPrefix(name[mstart:], "___") {
 		mstart++
 	}
@@ -223,8 +223,8 @@ func demangleTemplate(name string) (string, error) {
 		return name, nil
 	}
 
-	var remainder = name[mstart+2:]
-	name = name[:mstart]
+	var remainder = name[mstart+3:]
+	name = name[:mstart+1]
 
 	for true {
 		if !startsWithAny(remainder, templatePrefixes) {
@@ -237,13 +237,14 @@ func demangleTemplate(name string) (string, error) {
 		}
 
 		remainder = remainder[lstart+2:]
+
 		var name, remainder, err = extractName(remainder)
 		if err != nil {
 			return "", errors.New("Bad template argument length.")
 		}
 
-		if !strings.HasPrefix(remainder, "_") {
-			return "", errors.New("Unexpected character after template argument length.")
+		if !strings.HasPrefix(name, "_") { //This checks 'name', instead of 'remainder' because of the refactoring of extractName
+			return "", errors.New(fmt.Sprintf("Unexpected character after template argument length. \"%v\"", remainder))
 		}
 
 		var declArgs = ""
