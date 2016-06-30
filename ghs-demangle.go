@@ -58,7 +58,7 @@ var baseNames = map[string]string{
 	"__vc":  "operator[]",
 }
 
-var baseTypes = map[rune]string{
+var baseTypes = map[byte]string{
 	'v': "void",
 	'i': "int",
 	's': "short",
@@ -74,14 +74,14 @@ var baseTypes = map[rune]string{
 	'r': "long double",
 }
 
-var typePrefixes = map[rune]string{
+var typePrefixes = map[byte]string{
 	'U': "unsigned",
 	'S': "signed",
 	/* XXX below typePrefixes have not been seen - guess from libiberty cplus-dem.c */
 	'J': "__complex",
 }
 
-var typeSuffixes = map[rune]string{
+var typeSuffixes = map[byte]string{
 	'P': "*",
 	'R': "&",
 	'C': "const",
@@ -404,6 +404,38 @@ func readTemplateArguments(name string) (string, string, error) {
 
 func readType(args []string, name string) (string, string, error) {
 	fmt.Println("readType", args, name)
+	if len(name) == 0 {
+		return "", "", errors.New("Unexpected end of string.  Expected a type.")
+	}
+
+	if val, ok := baseTypes[name[0]]; ok {
+		return val + "#", name[1:], nil
+	} else if strings.HasPrefix(name, "Q") {
+		var result, remainder, err = readNameSpace(name)
+		check(err)
+		return result + "#", remainder, nil
+	} else if startsWithDigit(name) {
+		var result, remainder, err = readString(name)
+		check(err)
+		return result + "#", remainder, nil
+	} else if val, ok := typePrefixes[name[0]]; ok {
+		var result, remainder, err = readType(args, name[1:])
+		check(err)
+		return val + " " + result, remainder, nil
+	} else if val, ok := typeSuffixes[name[0]]; ok {
+		var result, remainder, err = readType(args, name[1:])
+		check(err)
+		return strings.Replace(result, "#", " "+val+"#", -1), remainder, nil
+		//} else if strings.HasPrefix(name, "Z") {
+		//} else if strings.HasPrefix(name, "A") {
+		//} else if strings.HasPrefix(name, "F") {
+		//} else if strings.HasPrefix(name, "T") {
+		//} else if strings.HasPrefix(name, "N") {
+
+	} else {
+		return "", "", fmt.Errorf("Unknown type \"%c\".", name[0])
+	}
+
 	var remainder = name
 	return "", remainder, nil
 }
@@ -465,6 +497,7 @@ func printUsage() {
 
 func check(e error) {
 	if e != nil {
-		panic(e)
+		//panic(e)
+		fmt.Println(e)
 	}
 }
