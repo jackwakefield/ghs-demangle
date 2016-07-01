@@ -173,8 +173,7 @@ func demangle(input string) (string, error) {
 
 	var declType = "#"
 	if strings.HasPrefix(mangle, "F") {
-		var args = []string{}
-		declType, mangle, err = readType(args, mangle)
+		declType, mangle, err = readType(nil, mangle)
 		check(err)
 	}
 
@@ -281,8 +280,7 @@ func readBaseName(name string) (string, string, error) {
 
 	var opName = ""
 	if strings.HasPrefix(name, "__op") {
-		var args = []string{}
-		var t, name, err = readType(args, name)
+		var t, name, err = readType(nil, name)
 
 		check(err)
 		opName = "operator " + t
@@ -443,13 +441,39 @@ func readType(args []string, name string) (string, string, error) {
 		var result, remainder, err = readType(args, name[1:])
 		check(err)
 		return strings.Replace(result, "#", " "+val+"#", -1), remainder, nil
-		//} else if strings.HasPrefix(name, "Z") {
-		//} else if strings.HasPrefix(name, "A") {
+	} else if strings.HasPrefix(name, "Z") {
+		var index = strings.Index(name[1:], "Z") //next 'Z'
+		if index == -1 {
+			return "", "", errors.New("Unexpected end of string. Expected \"Z\"")
+		}
+		return name[:index] + "#", name[:index+1], nil
+	} else if strings.HasPrefix(name, "A") {
+		name = name[1:]
+		/*
+			var index = strings.Index(name, "_Z")
+			if index > -1 {
+				var end = strings.Index(name[2:], "Z") //next 'Z'
+				length = strconv.Atoi(name[1 : end-1])
+				name = name[end+1:]
+			} else {
+		*/
+		var length, remainder, err = readIntPrefix(name)
+
+		if err != nil || len(remainder) == 0 {
+			return "", "", fmt.Errorf("Unexpected end of string.  Expected \"_\".")
+		}
+		if !strings.HasPrefix(remainder, "_") {
+			return "", "", fmt.Errorf("Unexpected character after array length \"%c\".  Expected \"_\".", remainder[0])
+		}
+		remainder = remainder[1:] //skip over '_'
+		var result = ""
+		result, remainder, err = readType(args, remainder)
+		check(err)
+		return strings.Replace(result, "#", "#["+strconv.Itoa(length)+"]", -1), remainder, nil
 	} else if strings.HasPrefix(name, "F") {
-		fmt.Println(name)
 		var declArgs, name, err = readArguments(name[1:])
-		fmt.Println(declArgs, name)
-		if err != nil || args == nil {
+		check(err)
+		if args == nil && (len(name) == 0 || strings.HasPrefix(name, "_")) {
 			return "#(" + declArgs + ")", name, nil
 		}
 		if len(name) == 0 {
@@ -462,20 +486,43 @@ func readType(args []string, name string) (string, string, error) {
 		result, remainder, err = readType(args, name[1:])
 		check(err)
 		return strings.Replace(result, "#", "(#)("+declArgs+")", -1), remainder, nil
+	} else if strings.HasPrefix(name, "T") {
+		var index, name, err = readIntPrefix(name[1:])
+		check(err)
+		if len(args) < index {
+			return "", "", fmt.Errorf("Bad argument number \"%v\".", index)
+		}
 
-		//} else if strings.HasPrefix(name, "T") {
-		//} else if strings.HasPrefix(name, "N") {
+		return args[index-1], name, nil
+	} else if strings.HasPrefix(name, "N") {
 
-	} else {
-		return "", "", fmt.Errorf("Unknown type \"%c\".", name[0])
 	}
 
-	return "", "", nil
+	return "", "", fmt.Errorf("Unknown type \"%c\".", name[0])
 }
 
-func readNameSpace(name string) (string, string, error) {
-	var remainder = name
-	return "", remainder, nil
+func readNameSpace(input string) (string, string, error) {
+	if len(input) == 0 || input[0] != 'Q' {
+		return "", "", errors.New("Unexpected end of string.  Expected \"Q\".")
+	}
+
+	var namespaces = []string{}
+
+	var count, remainder, err = readIntPrefix(input[1:])
+	check(err)
+
+	remainder = remainder[1:] //step over '_'
+
+	for i := 0; i < count; i++ {
+		//var remainderspaces = strings.SplitAfter(remainder, "Z")
+		var ns = ""
+		ns, remainder, err = readString(remainder)
+		check(err)
+		namespaces = append(namespaces, ns)
+	}
+
+	fmt.Println("readNameSpace:", input, "=>", namespaces, remainder)
+	return strings.Join(namespaces, "::"), remainder, nil
 }
 
 func readString(input string) (string, string, error) {
@@ -493,24 +540,29 @@ func readString(input string) (string, string, error) {
 	return dt, remainder, nil
 }
 
-func extractName(name string) (string, string, error) {
-	if len(name) == 0 {
-		return "", "", errors.New("Unexpected end of string.  Expected a digit.")
+func readIntPrefix(input string) (int, string, error) {
+	if len(input) == 0 {
+		return -1, "", errors.New("Unexpected end of string.  Expected a digit.")
 	}
 
 	re := regexp.MustCompile(`([0-9]+)(.*)$`)
-	var results = re.FindStringSubmatch(name)
+	var results = re.FindStringSubmatch(input)
 
 	//Should have 3 items in array; the whole regex match, and then each capture.
 	if results == nil || len(results) < 3 {
-		return "", "", errors.New("Unexpected end of string.  Unable to match digits.")
+		return -1, "", errors.New("Unexpected end of string.  Unable to match digits.")
 	}
 
 	var length, err = strconv.Atoi(results[1])
 	check(err)
 	var postNumber = results[2]
+	//fmt.Println("readIntPrefix", input, length, postNumber)
+	return length, postNumber, nil
+}
 
-	return postNumber[:length], postNumber[length:], nil
+func extractName(name string) (string, string, error) {
+	var length, postNumber, err = readIntPrefix(name)
+	return postNumber[:length], postNumber[length:], err
 }
 
 func startsWithAny(input string, names []string) bool {
@@ -530,7 +582,7 @@ func printUsage() {
 
 func check(e error) {
 	if e != nil {
-		//panic(e)
-		fmt.Println(e)
+		panic(e)
+		//fmt.Println(e)
 	}
 }
