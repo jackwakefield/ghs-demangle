@@ -341,8 +341,25 @@ func readBaseName(name string) (string, string, error) {
 }
 
 func readArguments(name string) (string, string, error) {
+	var result = ""
+	var args = []string{}
 	var remainder = name
-	return "", remainder, nil
+	var err error = nil
+
+	for len(remainder) > 0 && !strings.HasPrefix(remainder, "_") {
+		if len(args) > 0 {
+			result += ", "
+		}
+
+		var t = ""
+		t, remainder, err = readType(args, remainder)
+		check(err)
+
+		result += strings.Replace(t, "#", "", -1)
+		args = append(args, t)
+	}
+
+	return result, remainder, nil
 }
 
 func readTemplateArguments(name string) (string, string, error) {
@@ -428,7 +445,24 @@ func readType(args []string, name string) (string, string, error) {
 		return strings.Replace(result, "#", " "+val+"#", -1), remainder, nil
 		//} else if strings.HasPrefix(name, "Z") {
 		//} else if strings.HasPrefix(name, "A") {
-		//} else if strings.HasPrefix(name, "F") {
+	} else if strings.HasPrefix(name, "F") {
+		fmt.Println(name)
+		var declArgs, name, err = readArguments(name[1:])
+		fmt.Println(declArgs, name)
+		if err != nil || args == nil {
+			return "#(" + declArgs + ")", name, nil
+		}
+		if len(name) == 0 {
+			return "", "", errors.New("Unexpected end of string, expected \"_\".")
+		}
+		if !strings.HasPrefix(name, "_") {
+			return "", "", fmt.Errorf("Unexpected character after template parameter length. \"%v\"", name)
+		}
+		var result, remainder = "", ""
+		result, remainder, err = readType(args, name[1:])
+		check(err)
+		return strings.Replace(result, "#", "(#)("+declArgs+")", -1), remainder, nil
+
 		//} else if strings.HasPrefix(name, "T") {
 		//} else if strings.HasPrefix(name, "N") {
 
@@ -436,8 +470,7 @@ func readType(args []string, name string) (string, string, error) {
 		return "", "", fmt.Errorf("Unknown type \"%c\".", name[0])
 	}
 
-	var remainder = name
-	return "", remainder, nil
+	return "", "", nil
 }
 
 func readNameSpace(name string) (string, string, error) {
