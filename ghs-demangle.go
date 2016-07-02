@@ -102,7 +102,7 @@ func main() {
 
 	demangleAll(filename)
 	//fmt.Println("")
-	//fmt.Println(demangle("__ct__7MyClass"))
+	//fmt.Println(demangle("__CPR51__method__19ReallyLongClassNameFJ6J"))
 }
 
 func demangleAll(filename string) {
@@ -207,7 +207,40 @@ func startsWithDigit(input string) bool {
 }
 
 func decompress(name string) (string, error) {
-	return name, nil
+	if !strings.HasPrefix(name, "__CPR") {
+		return name, nil
+	}
+
+	name = name[5:] //skip '__CPR'
+
+	var err error = nil
+	var decompressedLen = 0
+	decompressedLen, name, err = readIntPrefix(name)
+	check(err)
+
+	name = name[2:] //skip '__'
+	var jays = strings.Split(name, "J")
+
+	var result = jays[0]
+	for _, val := range jays[1:] {
+		if len(val) == 0 {
+			break
+		}
+		var loc = 0
+		loc, err = strconv.Atoi(val)
+		check(err)
+
+		var tmp, _, err = extractName(result[loc:])
+		check(err)
+
+		result += strconv.Itoa(len(tmp)) + tmp
+	}
+
+	if len(result) != decompressedLen {
+		return "", fmt.Errorf("Bad decompression length.  Expected %v and got %v", decompressedLen, len(result))
+	}
+
+	return result, nil
 }
 
 func demangleTemplate(name string) (string, error) {
@@ -418,7 +451,7 @@ func readTemplateArguments(name string) (string, string, error) {
 }
 
 func readType(args []string, name string) (string, string, error) {
-	fmt.Println("readType", args, name)
+	//fmt.Println("readType", args, name)
 	if len(name) == 0 {
 		return "", "", errors.New("Unexpected end of string.  Expected a type.")
 	}
@@ -469,6 +502,7 @@ func readType(args []string, name string) (string, string, error) {
 		var result = ""
 		result, remainder, err = readType(args, remainder)
 		check(err)
+
 		return strings.Replace(result, "#", "#["+strconv.Itoa(length)+"]", -1), remainder, nil
 	} else if strings.HasPrefix(name, "F") {
 		var declArgs, name, err = readArguments(name[1:])
@@ -485,17 +519,32 @@ func readType(args []string, name string) (string, string, error) {
 		var result, remainder = "", ""
 		result, remainder, err = readType(args, name[1:])
 		check(err)
+
 		return strings.Replace(result, "#", "(#)("+declArgs+")", -1), remainder, nil
 	} else if strings.HasPrefix(name, "T") {
-		var index, name, err = readIntPrefix(name[1:])
+		var index, err = strconv.Atoi(name[1:2])
 		check(err)
 		if len(args) < index {
 			return "", "", fmt.Errorf("Bad argument number \"%v\".", index)
 		}
 
-		return args[index-1], name, nil
+		return args[index-1], name[2:], nil
 	} else if strings.HasPrefix(name, "N") {
+		var err error = nil
+		var count, arg = 0, 0
+		var remainder = ""
+		count, err = strconv.Atoi(name[1:2])
+		check(err)
+		arg, err = strconv.Atoi(name[2:3])
+		check(err)
 
+		if count > 1 {
+			remainder = "N" + strconv.Itoa(count-1) + strconv.Itoa(arg) + name[3:]
+		} else {
+			remainder = name[3:]
+		}
+
+		return args[arg-1], remainder, nil
 	}
 
 	return "", "", fmt.Errorf("Unknown type \"%c\".", name[0])
@@ -521,7 +570,7 @@ func readNameSpace(input string) (string, string, error) {
 		namespaces = append(namespaces, ns)
 	}
 
-	fmt.Println("readNameSpace:", input, "=>", namespaces, remainder)
+	//fmt.Println("readNameSpace:", input, "=>", namespaces, remainder)
 	return strings.Join(namespaces, "::"), remainder, nil
 }
 
