@@ -276,7 +276,7 @@ func demangleTemplate(name string) (string, error) {
 			return "", errors.New("Bad template argument length.")
 		}
 
-		if !strings.HasPrefix(name, "_") { //This checks 'name', instead of 'remainder' because of the refactoring of extractName
+		if !strings.HasPrefix(name, "_") {
 			return "", fmt.Errorf("Unexpected character after template parameter length. \"%v\"", name)
 		}
 
@@ -292,7 +292,7 @@ func demangleTemplate(name string) (string, error) {
 		name += "<" + declArgs + ">"
 
 		if tmp != remainder {
-			return "", fmt.Errorf("Bad template argument length %v != %v", tmp, remainder)
+			return "", fmt.Errorf("Bad template argument length.  %s != %s", tmp, remainder)
 		}
 
 		if len(remainder) == 0 {
@@ -300,7 +300,7 @@ func demangleTemplate(name string) (string, error) {
 		}
 
 		if !strings.HasPrefix(remainder, "__") {
-			return "", errors.New("Unexpected character(s) after template.")
+			return "", fmt.Errorf("Unexpected character(s) after template: %c%c.  Expected \"__\".", remainder[0], remainder[1])
 		}
 
 		remainder = remainder[2:]
@@ -393,10 +393,10 @@ func readArguments(name string) (string, string, error) {
 	return result, remainder, nil
 }
 
-func readTemplateArguments(name string) (string, string, error) {
+func readTemplateArguments(input string) (string, string, error) {
 	var result = ""
 	var args = []string{}
-	var remainder = name
+	var remainder = input
 
 	var tipe = "" //Can't call it 'type' as the original source does :)
 	var val = ""
@@ -420,21 +420,31 @@ func readTemplateArguments(name string) (string, string, error) {
 				tipe, remainder, err = readType(args, remainder)
 				check(err)
 				tipe = strings.Replace(tipe, "#", " #", -1)
+
 				if strings.HasPrefix(remainder, "L") {
-					remainder = remainder[1:]
-					if len(remainder) == 0 || remainder[0] != '_' {
-						return "", "", errors.New("Unexpected end of string.  Expected '_'.")
+					remainder = remainder[1:] //skip 'L'
+					if len(remainder) == 0 {
+						return "", "", errors.New("Unexpected end of string.  Expected \"_\".")
+					}
+					if !strings.HasPrefix(remainder, "_") {
+						return "", "", fmt.Errorf("Unexpected character after template parameter encoding %c.  Expected \"_\".", remainder[0])
 					}
 
-					val, remainder, err = extractName(remainder[1:])
-
+					var length = 0
+					length, remainder, err = readIntPrefix(remainder[1:])
 					if err != nil {
 						return "", "", errors.New("Bad template parameter length.")
 					}
 
-					if !strings.HasPrefix(val, "_") { //This checks 'name', instead of 'remainder' because of the refactoring of extractName
-						return "", "", fmt.Errorf("Unexpected character after template parameter length. \"%v\"", val)
+					if !strings.HasPrefix(remainder, "_") {
+						return "", "", fmt.Errorf("Unexpected character after template parameter length. \"%v\"", remainder)
 					}
+
+					remainder = remainder[1:] //skip '_'
+					val = remainder[:length]
+					remainder = remainder[length:]
+				} else {
+					return "", "", fmt.Errorf("Unknown template parameter encoding \"%c\".", remainder[0])
 				}
 			}
 		} else {
