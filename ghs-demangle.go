@@ -98,8 +98,6 @@ func main() {
 
 	var filename = os.Args[1]
 	demangleAll(filename)
-	//fmt.Println("")
-	//fmt.Println(demangle("____ct__Q2_7Gateway13LastFrameDataFv_static_in_Cinfinitygamein2masterMainGame_buildsin2cafe_intermediatesconsumerOctaneEngineLowLevelPlatformlump_PlatformLump_inf"))
 }
 
 func demangleAll(filename string) {
