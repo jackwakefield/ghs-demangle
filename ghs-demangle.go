@@ -138,6 +138,7 @@ func demangle(input string) (string, error) {
 
 	var declNameSpace = ""
 	var declClass = ""
+
 	if strings.HasPrefix(mangle, "Q") {
 		declNameSpace, mangle, err = readNameSpace(mangle)
 		check(err)
@@ -150,7 +151,7 @@ func demangle(input string) (string, error) {
 		}
 
 		declNameSpace += "::"
-	} else if startsWithDigit(mangle) {
+	} else if len(mangle) > 0 && startsWithDigit(mangle) {
 		declClass, mangle, err = readString(mangle)
 		check(err)
 		declNameSpace = declClass + "::"
@@ -260,6 +261,7 @@ func demangleTemplate(name string) (string, error) {
 	name = name[:mstart+1]
 
 	for true {
+		var err error
 		if !startsWithAny(remainder, templatePrefixes) {
 			return "", errors.New("Unexpected template argument prefix.")
 		}
@@ -270,19 +272,19 @@ func demangleTemplate(name string) (string, error) {
 		}
 
 		remainder = remainder[lstart+2:]
-
-		var name, remainder, err = extractName(remainder)
+		var extracted = ""
+		extracted, remainder, err = extractName(remainder)
 		if err != nil {
 			return "", errors.New("Bad template argument length.")
 		}
 
-		if !strings.HasPrefix(name, "_") {
-			return "", fmt.Errorf("Unexpected character after template parameter length. \"%v\"", name)
+		if !strings.HasPrefix(extracted, "_") {
+			return "", fmt.Errorf("Unexpected character after template parameter length. \"%v\"", extracted)
 		}
 
 		var declArgs = ""
 		var tmp = ""
-		declArgs, tmp, err = readTemplateArguments(name[1:])
+		declArgs, tmp, err = readTemplateArguments(extracted[1:])
 		check(err)
 
 		if strings.HasSuffix(declArgs, ">") {
@@ -305,8 +307,7 @@ func demangleTemplate(name string) (string, error) {
 
 		remainder = remainder[2:]
 	}
-
-	return name, nil
+	return "", errors.New("Unexpectedly exited outside unbounded loop")
 }
 
 func readBaseName(name string) (string, string, error) {
@@ -461,7 +462,6 @@ func readTemplateArguments(input string) (string, string, error) {
 }
 
 func readType(args []string, name string) (string, string, error) {
-	//fmt.Println("readType", args, name)
 	if len(name) == 0 {
 		return "", "", errors.New("Unexpected end of string.  Expected a type.")
 	}
@@ -561,12 +561,12 @@ func readType(args []string, name string) (string, string, error) {
 }
 
 func readNameSpace(input string) (string, string, error) {
-	if len(input) == 0 || input[0] != 'Q' {
+	if len(input) == 0 || !strings.HasPrefix(input, "Q") {
 		return "", "", errors.New("Unexpected end of string.  Expected \"Q\".")
 	}
 
+	//Q2_5Types58PortionedHandle__tm__35_5AgentXCUiL_2_14XCUiL_1_6XCUiL_1_0b
 	var namespaces = []string{}
-
 	var count, remainder, err = readIntPrefix(input[1:])
 	check(err)
 
@@ -580,7 +580,6 @@ func readNameSpace(input string) (string, string, error) {
 		namespaces = append(namespaces, ns)
 	}
 
-	//fmt.Println("readNameSpace:", input, "=>", namespaces, remainder)
 	return strings.Join(namespaces, "::"), remainder, nil
 }
 
@@ -620,7 +619,6 @@ func readIntPrefix(input string) (int, string, error) {
 	var length, err = strconv.Atoi(results[1])
 	check(err)
 	var postNumber = results[2]
-	//fmt.Println("readIntPrefix", input, length, postNumber)
 	return length, postNumber, nil
 }
 
