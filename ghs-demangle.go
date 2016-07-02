@@ -221,21 +221,22 @@ func decompress(name string) (string, error) {
 	name = name[2:] //skip '__'
 	var jays = strings.Split(name, "J")
 
-	var result = jays[0]
-	for _, val := range jays[1:] {
-		if len(val) == 0 {
-			break
+	for i, val := range jays {
+		//I assume, perhaps wrongly, that even elements are literals
+		if i%2 == 1 {
+			//Interpolation
+			var offset = 0
+			offset, err = strconv.Atoi(val)
+			check(err)
+
+			var sub, _, err = extractName(name[offset:])
+
+			check(err)
+			jays[i] = writeString(sub) //prefix with length
 		}
-		var loc = 0
-		loc, err = strconv.Atoi(val)
-		check(err)
-
-		var tmp, _, err = extractName(result[loc:])
-		check(err)
-
-		result += strconv.Itoa(len(tmp)) + tmp
 	}
 
+	var result = strings.Join(jays, "")
 	if len(result) != decompressedLen {
 		return "", fmt.Errorf("Bad decompression length.  Expected %v and got %v", decompressedLen, len(result))
 	}
@@ -353,7 +354,7 @@ func readBaseName(name string) (string, string, error) {
 			return "", "", errors.New("Bad template argument length.")
 		}
 
-		name += "__" + strconv.Itoa(len(name)) + remainder
+		name += "__" + strconv.Itoa(len(name)) + remainder //I wonder if this is wrong, should it be the length of the remainder?
 		if len(remainder) == 0 {
 			return name, remainder, nil
 		}
@@ -587,6 +588,11 @@ func readString(input string) (string, string, error) {
 	check(err)
 
 	return dt, remainder, nil
+}
+
+func writeString(input string) string {
+	//Prefix string with its length.
+	return strconv.Itoa(len(input)) + input
 }
 
 func readIntPrefix(input string) (int, string, error) {
