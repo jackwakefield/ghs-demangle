@@ -97,12 +97,9 @@ func main() {
 	}
 
 	var filename = os.Args[1]
-
-	fmt.Println("Hello", filename)
-
 	demangleAll(filename)
 	//fmt.Println("")
-	//fmt.Println(demangle("__CPR51__method__19ReallyLongClassNameFJ6J"))
+	//fmt.Println(demangle("____ct__Q2_7Gateway13LastFrameDataFv_static_in_Cinfinitygamein2masterMainGame_buildsin2cafe_intermediatesconsumerOctaneEngineLowLevelPlatformlump_PlatformLump_inf"))
 }
 
 func demangleAll(filename string) {
@@ -117,6 +114,7 @@ func demangleAll(filename string) {
 			var name, err = demangle(line)
 			if err != nil {
 				fmt.Println("Error demangling:", line)
+				fmt.Println(err)
 			}
 			fmt.Println(name)
 		}
@@ -221,24 +219,28 @@ func decompress(name string) (string, error) {
 	name = name[2:] //skip '__'
 	var jays = strings.Split(name, "J")
 
+	var result = ""
 	for i, val := range jays {
 		//I assume, perhaps wrongly, that even elements are literals
-		if i%2 == 1 {
+		if i%2 == 0 {
+			//Literal
+			result += val
+		} else {
 			//Interpolation
-			var offset = 0
+			var offset = -1
 			offset, err = strconv.Atoi(val)
-			check(err)
+			if offset == -1 || err != nil {
+				return "", fmt.Errorf("Bad decompression offset. %v is not a valid offset.", val)
+			}
 
-			var sub, _, err = extractName(name[offset:])
-
+			var sub, _, err = extractName(result[offset:])
 			check(err)
-			jays[i] = writeString(sub) //prefix with length
+			result += writeString(sub)
 		}
 	}
 
-	var result = strings.Join(jays, "")
 	if len(result) != decompressedLen {
-		return "", fmt.Errorf("Bad decompression length.  Expected %v and got %v", decompressedLen, len(result))
+		return "", fmt.Errorf("Bad decompression length. Expected %v and got %v.", decompressedLen, len(result))
 	}
 
 	return result, nil
@@ -327,12 +329,11 @@ func readBaseName(name string) (string, string, error) {
 	}
 
 	if mstart == -1 {
-		var remainder = ""
-		return name, remainder, nil
+		return name, "", nil
 	}
 
-	var remainder = name[mstart+3:]
-	name = name[:mstart+1]
+	var remainder = ""
+	name, remainder = name[:mstart+1], name[mstart+3:]
 
 	if val, ok := baseNames[name]; ok {
 		name = val
@@ -350,11 +351,9 @@ func readBaseName(name string) (string, string, error) {
 		remainder = remainder[lstart+2:]
 
 		var name, remainder, err = extractName(remainder)
-		if err != nil {
-			return "", "", errors.New("Bad template argument length.")
-		}
+		check(err)
 
-		name += "__" + strconv.Itoa(len(name)) + remainder //I wonder if this is wrong, should it be the length of the remainder?
+		name += "__" + writeString(name)
 		if len(remainder) == 0 {
 			return name, remainder, nil
 		}
