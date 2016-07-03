@@ -134,10 +134,11 @@ func demangleAll(file *os.File) {
 		if len(line) > 0 {
 			var name, err = demangle(line)
 			if err != nil {
-				fmt.Println("Error demangling:", line)
-				fmt.Println(err)
+				fmt.Fprintf(os.Stderr, "Error demangling: %s", err)
+				fmt.Println(line)
+			} else {
+				fmt.Println(name)
 			}
-			fmt.Println(name)
 		}
 	}
 }
