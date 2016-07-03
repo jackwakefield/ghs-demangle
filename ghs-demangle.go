@@ -9,6 +9,7 @@ import "unicode/utf8"
 import "errors"
 import "regexp"
 import "strconv"
+import "flag"
 
 var templatePrefixes = []string{"tm", "ps", "pt"}
 
@@ -91,20 +92,42 @@ var typeSuffixes = map[byte]string{
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		printUsage()
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stdout, "%s [OPTION].. [FILE]..\n", os.Args[0])
+		fmt.Println("Demangles all symbols in FILE(s) to standard output.")
+		fmt.Println("Ported to Golang from Chadderz121/ghs-demangle by Eric Betts")
+		fmt.Println("Error messages are displayed on standard error.")
+		fmt.Println("Use \"-\" as file for standard input.")
+		flag.PrintDefaults()
+	}
+	var version = flag.Bool("version", false, "Display version message and exit.")
+	var help = flag.Bool("help", false, "Display help message and exit.")
+	flag.Parse()
+
+	if *version {
+		printVersion()
+		os.Exit(0)
+	}
+
+	if *help || len(flag.Args()) < 1 {
+		flag.Usage()
 		os.Exit(1)
 	}
 
-	var filename = os.Args[1]
-	demangleAll(filename)
+	var first = flag.Arg(0)
+	if first == "-" {
+		demangleAll(os.Stdin)
+	} else {
+		for _, filename := range flag.Args() {
+			file, err := os.Open(filename)
+			check(err)
+			demangleAll(file)
+			defer file.Close()
+		}
+	}
 }
 
-func demangleAll(filename string) {
-	file, err := os.Open(filename)
-	check(err)
-	defer file.Close()
-
+func demangleAll(file *os.File) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		var line = scanner.Text()
@@ -634,15 +657,16 @@ func startsWithAny(input string, names []string) bool {
 	return false
 }
 
-func printUsage() {
-	fmt.Println("Ported to Golang from Chadderz121/ghs-demangle")
-	fmt.Println("ghs-demangle [FILE]")
-	fmt.Println("Demangles all symbols in FILE to standard output.")
+func printVersion() {
+	fmt.Println("ghs-demangle v0.1-go")
+	fmt.Println("by Eric Betts")
+	fmt.Println("")
+	fmt.Println("This is free software; see the source for copying conditions.  There is NO")
+	fmt.Println("warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.")
 }
 
 func check(e error) {
 	if e != nil {
 		panic(e)
-		//fmt.Println(e)
 	}
 }
