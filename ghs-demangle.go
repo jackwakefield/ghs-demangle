@@ -135,19 +135,22 @@ func demangleAll(file *os.File) {
 		name, err := demangle(line)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error demangling: %s", err)
-			fmt.Println(line)
-		} else {
-			fmt.Println(name)
 		}
+		//On error, the original input is returned
+		fmt.Println(name)
 	}
 }
 
 func demangle(input string) (string, error) {
 	name, err := decompress(input)
-	check(err)
+	if err != nil {
+		return input, err
+	}
 
 	baseName, mangle, err := readBaseName(name)
-	check(err)
+	if err != nil {
+		return input, err
+	}
 
 	var declStatic = ""
 	if strings.HasPrefix(mangle, "S__") {
@@ -155,12 +158,14 @@ func demangle(input string) (string, error) {
 		mangle = mangle[3:]
 	}
 
-	var declNameSpace = ""
-	var declClass = ""
+	var declNameSpace string
+	var declClass string
 
 	if strings.HasPrefix(mangle, "Q") {
 		declNameSpace, mangle, err = readNameSpace(mangle)
-		check(err)
+		if err != nil {
+			return input, err
+		}
 
 		var last = strings.LastIndex(declNameSpace, "::")
 		if last == -1 {
@@ -172,7 +177,9 @@ func demangle(input string) (string, error) {
 		declNameSpace += "::"
 	} else if len(mangle) > 0 && startsWithDigit(mangle) {
 		declClass, mangle, err = readString(mangle)
-		check(err)
+		if err != nil {
+			return input, err
+		}
 		declNameSpace = declClass + "::"
 	}
 
@@ -183,34 +190,38 @@ func demangle(input string) (string, error) {
 		mangle = mangle[1:]
 	}
 
-	var declConst = ""
+	var declConst string
 	if strings.HasPrefix(mangle, "C") {
 		declConst = " const"
 		mangle = mangle[1:]
 	}
 
-	var declType = "#"
+	declType := "#"
 	if strings.HasPrefix(mangle, "F") {
 		declType, mangle, err = readType(nil, mangle)
-		check(err)
+		if err != nil {
+			return input, err
+		}
 	}
 
 	if strings.HasPrefix(mangle, "_") {
 		var end, err = strconv.Atoi(mangle[1:])
-		check(err)
+		if err != nil {
+			return input, err
+		}
 		baseName += "_" + strconv.Itoa(end)
 		mangle = ""
 	}
 
 	if len(mangle) > 0 {
-		return "", fmt.Errorf("Unknown modifier %v", mangle)
+		return input, fmt.Errorf("Unknown modifier %v", mangle)
 	}
 
-	var partTwo = declType
-	partTwo = strings.Replace(partTwo, "(#)", " "+declNameSpace+baseName, -1)
-	partTwo = strings.Replace(partTwo, "#", declNameSpace+baseName, -1)
+	declType = strings.Replace(declType, "(#)", " "+declNameSpace+baseName, -1)
+	declType = strings.Replace(declType, "#", declNameSpace+baseName, -1)
+	combination := declStatic + declType + declConst
 
-	return strings.Replace(declStatic+partTwo+declConst, "::"+baseNames["__vtbl"], baseNames["__vtbl"], -1), nil
+	return strings.Replace(combination, "::"+baseNames["__vtbl"], baseNames["__vtbl"], -1), nil
 }
 
 func startsWithDigit(input string) bool {
@@ -231,16 +242,14 @@ func decompress(name string) (string, error) {
 
 	name = name[5:] //skip '__CPR'
 
-	var err error = nil
-	var decompressedLen = 0
-	decompressedLen, name, err = readIntPrefix(name)
+	decompressedLen, name, err := readIntPrefix(name)
 	check(err)
 
 	name = name[2:] //skip '__'
-	var jays = strings.Split(name, "J")
+	segments := strings.Split(name, "J")
 
 	var result = ""
-	for i, val := range jays {
+	for i, val := range segments {
 		//I assume, perhaps wrongly, that even elements are literals
 		if i%2 == 0 {
 			//Literal
@@ -267,7 +276,7 @@ func decompress(name string) (string, error) {
 }
 
 func demangleTemplate(name string) (string, error) {
-	var mstart = strings.Index(name[1:], "__")
+	mstart := strings.Index(name[1:], "__")
 	if mstart != -1 && strings.HasPrefix(name[mstart:], "___") {
 		mstart++
 	}
@@ -276,10 +285,10 @@ func demangleTemplate(name string) (string, error) {
 		return name, nil
 	}
 
-	var remainder = name[mstart+3:]
+	remainder := name[mstart+3:]
 	name = name[:mstart+1]
 
-	for true {
+	for {
 		var err error
 		if !startsWithAny(remainder, templatePrefixes) {
 			return "", errors.New("Unexpected template argument prefix.")
@@ -642,7 +651,7 @@ func readIntPrefix(input string) (int, string, error) {
 }
 
 func extractName(name string) (string, string, error) {
-	var length, postNumber, err = readIntPrefix(name)
+	length, postNumber, err := readIntPrefix(name)
 	return postNumber[:length], postNumber[length:], err
 }
 
