@@ -1,15 +1,17 @@
 package main
 
-import "os"
-import "fmt"
-import "bufio"
-import "strings"
-import "unicode"
-import "unicode/utf8"
-import "errors"
-import "regexp"
-import "strconv"
-import "flag"
+import (
+	"bufio"
+	"errors"
+	"flag"
+	"fmt"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
+	"unicode"
+	"unicode/utf8"
+)
 
 var templatePrefixes = []string{"tm", "ps", "pt"}
 
@@ -100,8 +102,8 @@ func main() {
 		fmt.Println("Use \"-\" as file for standard input.")
 		flag.PrintDefaults()
 	}
-	var version = flag.Bool("version", false, "Display version message and exit.")
-	var help = flag.Bool("help", false, "Display help message and exit.")
+	version := flag.Bool("version", false, "Display version message and exit.")
+	help := flag.Bool("help", false, "Display help message and exit.")
 	flag.Parse()
 
 	if *version {
@@ -114,8 +116,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	var first = flag.Arg(0)
-	if first == "-" {
+	if flag.Arg(0) == "-" {
 		demangleAll(os.Stdin)
 	} else {
 		for _, filename := range flag.Args() {
@@ -130,26 +131,22 @@ func main() {
 func demangleAll(file *os.File) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		var line = scanner.Text()
-		if len(line) > 0 {
-			var name, err = demangle(line)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error demangling: %s", err)
-				fmt.Println(line)
-			} else {
-				fmt.Println(name)
-			}
+		line := scanner.Text()
+		name, err := demangle(line)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error demangling: %s", err)
+			fmt.Println(line)
+		} else {
+			fmt.Println(name)
 		}
 	}
 }
 
 func demangle(input string) (string, error) {
-	var name, err = decompress(input)
+	name, err := decompress(input)
 	check(err)
 
-	var baseName = ""
-	var mangle = ""
-	baseName, mangle, err = readBaseName(name)
+	baseName, mangle, err := readBaseName(name)
 	check(err)
 
 	var declStatic = ""
