@@ -1,11 +1,8 @@
-package main
+package ghs
 
 import (
-	"bufio"
 	"errors"
-	"flag"
 	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -93,55 +90,7 @@ var typeSuffixes = map[byte]string{
 	'u': "restrict",
 }
 
-func main() {
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stdout, "%s [OPTION].. [FILE]..\n", os.Args[0])
-		fmt.Println("Demangles all symbols in FILE(s) to standard output.")
-		fmt.Println("Ported to Golang from Chadderz121/ghs-demangle by Eric Betts")
-		fmt.Println("Error messages are displayed on standard error.")
-		fmt.Println("Use \"-\" as file for standard input.")
-		flag.PrintDefaults()
-	}
-	version := flag.Bool("version", false, "Display version message and exit.")
-	help := flag.Bool("help", false, "Display help message and exit.")
-	flag.Parse()
-
-	if *version {
-		printVersion()
-		os.Exit(0)
-	}
-
-	if *help || len(flag.Args()) < 1 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	if flag.Arg(0) == "-" {
-		demangleAll(os.Stdin)
-	} else {
-		for _, filename := range flag.Args() {
-			file, err := os.Open(filename)
-			check(err)
-			demangleAll(file)
-			defer file.Close()
-		}
-	}
-}
-
-func demangleAll(file *os.File) {
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		name, err := demangle(line)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error demangling: %s", err)
-		}
-		//On error, the original input is returned
-		fmt.Println(name)
-	}
-}
-
-func demangle(input string) (string, error) {
+func Demangle(input string) (string, error) {
 	name, err := decompress(input)
 	if err != nil {
 		return input, err
