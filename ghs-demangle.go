@@ -192,7 +192,9 @@ func decompress(name string) (string, error) {
 	name = name[5:] //skip '__CPR'
 
 	decompressedLen, name, err := readIntPrefix(name)
-	check(err)
+	if err != nil {
+		return "", err
+	}
 
 	name = name[2:] //skip '__'
 	segments := strings.Split(name, "J")
@@ -212,7 +214,9 @@ func decompress(name string) (string, error) {
 			}
 
 			var sub, _, err = extractName(result[offset:])
-			check(err)
+			if err != nil {
+				return "", err
+			}
 			result += writeString(sub)
 		}
 	}
@@ -262,7 +266,9 @@ func demangleTemplate(name string) (string, error) {
 		var declArgs = ""
 		var tmp = ""
 		declArgs, tmp, err = readTemplateArguments(extracted[1:])
-		check(err)
+		if err != nil {
+			return "", err
+		}
 
 		if strings.HasSuffix(declArgs, ">") {
 			declArgs += " "
@@ -295,8 +301,10 @@ func readBaseName(name string) (string, string, error) {
 	var opName = ""
 	if strings.HasPrefix(name, "__op") {
 		var t, name, err = readType(nil, name)
+		if err != nil {
+			return "", "", err
+		}
 
-		check(err)
 		opName = "operator " + t
 		name = "#" + name
 	}
@@ -329,7 +337,9 @@ func readBaseName(name string) (string, string, error) {
 		remainder = remainder[lstart+2:]
 
 		var name, remainder, err = extractName(remainder)
-		check(err)
+		if err != nil {
+			return "", "", err
+		}
 
 		name += "__" + writeString(name)
 		if len(remainder) == 0 {
@@ -344,7 +354,9 @@ func readBaseName(name string) (string, string, error) {
 	}
 
 	var dt, err = demangleTemplate(name)
-	check(err)
+	if err != nil {
+		return "", "", err
+	}
 
 	return dt, remainder, nil
 }
@@ -362,7 +374,9 @@ func readArguments(name string) (string, string, error) {
 
 		var t = ""
 		t, remainder, err = readType(args, remainder)
-		check(err)
+		if err != nil {
+			return "", "", err
+		}
 
 		result += strings.Replace(t, "#", "", -1)
 		args = append(args, t)
@@ -393,10 +407,14 @@ func readTemplateArguments(input string) (string, string, error) {
 			if startsWithDigit(remainder) {
 				tipe = "#"
 				val, remainder, err = readString(remainder)
-				check(err)
+				if err != nil {
+					return "", "", err
+				}
 			} else {
 				tipe, remainder, err = readType(args, remainder)
-				check(err)
+				if err != nil {
+					return "", "", err
+				}
 				tipe = strings.Replace(tipe, "#", " #", -1)
 
 				if strings.HasPrefix(remainder, "L") {
@@ -427,7 +445,9 @@ func readTemplateArguments(input string) (string, string, error) {
 			}
 		} else {
 			val, remainder, err = readType(args, remainder)
-			check(err)
+			if err != nil {
+				return "", "", err
+			}
 			tipe = "class #"
 		}
 
@@ -447,19 +467,27 @@ func readType(args []string, name string) (string, string, error) {
 		return val + "#", name[1:], nil
 	} else if strings.HasPrefix(name, "Q") {
 		var result, remainder, err = readNameSpace(name)
-		check(err)
+		if err != nil {
+			return "", "", err
+		}
 		return result + "#", remainder, nil
 	} else if startsWithDigit(name) {
 		var result, remainder, err = readString(name)
-		check(err)
+		if err != nil {
+			return "", "", err
+		}
 		return result + "#", remainder, nil
 	} else if val, ok := typePrefixes[name[0]]; ok {
 		var result, remainder, err = readType(args, name[1:])
-		check(err)
+		if err != nil {
+			return "", "", err
+		}
 		return val + " " + result, remainder, nil
 	} else if val, ok := typeSuffixes[name[0]]; ok {
 		var result, remainder, err = readType(args, name[1:])
-		check(err)
+		if err != nil {
+			return "", "", err
+		}
 		return strings.Replace(result, "#", " "+val+"#", -1), remainder, nil
 	} else if strings.HasPrefix(name, "Z") {
 		var index = strings.Index(name[1:], "Z") //next 'Z'
@@ -488,12 +516,16 @@ func readType(args []string, name string) (string, string, error) {
 		remainder = remainder[1:] //skip over '_'
 		var result = ""
 		result, remainder, err = readType(args, remainder)
-		check(err)
+		if err != nil {
+			return "", "", err
+		}
 
 		return strings.Replace(result, "#", "#["+strconv.Itoa(length)+"]", -1), remainder, nil
 	} else if strings.HasPrefix(name, "F") {
 		var declArgs, name, err = readArguments(name[1:])
-		check(err)
+		if err != nil {
+			return "", "", err
+		}
 		if args == nil && (len(name) == 0 || strings.HasPrefix(name, "_")) {
 			return "#(" + declArgs + ")", name, nil
 		}
@@ -505,12 +537,16 @@ func readType(args []string, name string) (string, string, error) {
 		}
 		var result, remainder = "", ""
 		result, remainder, err = readType(args, name[1:])
-		check(err)
+		if err != nil {
+			return "", "", err
+		}
 
 		return strings.Replace(result, "#", "(#)("+declArgs+")", -1), remainder, nil
 	} else if strings.HasPrefix(name, "T") {
 		var index, err = strconv.Atoi(name[1:2])
-		check(err)
+		if err != nil {
+			return "", "", err
+		}
 		if len(args) < index {
 			return "", "", fmt.Errorf("Bad argument number \"%v\".", index)
 		}
@@ -521,9 +557,13 @@ func readType(args []string, name string) (string, string, error) {
 		var count, arg = 0, 0
 		var remainder = ""
 		count, err = strconv.Atoi(name[1:2])
-		check(err)
+		if err != nil {
+			return "", "", err
+		}
 		arg, err = strconv.Atoi(name[2:3])
-		check(err)
+		if err != nil {
+			return "", "", err
+		}
 
 		if count > 1 {
 			remainder = "N" + strconv.Itoa(count-1) + strconv.Itoa(arg) + name[3:]
@@ -545,7 +585,9 @@ func readNameSpace(input string) (string, string, error) {
 	//Q2_5Types58PortionedHandle__tm__35_5AgentXCUiL_2_14XCUiL_1_6XCUiL_1_0b
 	var namespaces = []string{}
 	var count, remainder, err = readIntPrefix(input[1:])
-	check(err)
+	if err != nil {
+		return "", "", err
+	}
 
 	remainder = remainder[1:] //step over '_'
 
@@ -553,7 +595,9 @@ func readNameSpace(input string) (string, string, error) {
 		//var remainderspaces = strings.SplitAfter(remainder, "Z")
 		var ns = ""
 		ns, remainder, err = readString(remainder)
-		check(err)
+		if err != nil {
+			return "", "", err
+		}
 		namespaces = append(namespaces, ns)
 	}
 
@@ -566,11 +610,15 @@ func readString(input string) (string, string, error) {
 	}
 
 	var name, remainder, err = extractName(input)
-	check(err)
+	if err != nil {
+		return "", "", err
+	}
 
 	var dt = ""
 	dt, err = demangleTemplate(name)
-	check(err)
+	if err != nil {
+		return "", "", err
+	}
 
 	return dt, remainder, nil
 }
@@ -594,7 +642,9 @@ func readIntPrefix(input string) (int, string, error) {
 	}
 
 	var length, err = strconv.Atoi(results[1])
-	check(err)
+	if err != nil {
+		return 0, "", err
+	}
 	var postNumber = results[2]
 	return length, postNumber, nil
 }
@@ -611,18 +661,4 @@ func startsWithAny(input string, names []string) bool {
 		}
 	}
 	return false
-}
-
-func printVersion() {
-	fmt.Println("ghs-demangle v0.1-go")
-	fmt.Println("by Eric Betts")
-	fmt.Println("")
-	fmt.Println("This is free software; see the source for copying conditions.  There is NO")
-	fmt.Println("warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.")
-}
-
-func check(e error) {
-	if e != nil {
-		panic(e)
-	}
 }
